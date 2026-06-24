@@ -1,0 +1,43 @@
+[package]
+name = "ale-core"
+version = "0.1.0"
+edition = "2021"
+description = "Core functionality for Ale, My Eyes! - VLM, ASR, TTS integration"
+license = "MIT"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+tts = { version = "0.25", optional = true }
+ort = { version = "2.0.0-rc.12", features = ["load-dynamic"], optional = true }
+ndarray = { version = "0.15", optional = true }
+whisper-rs = { version = "0.16", optional = true }
+log = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart", "stream"] }
+serde_urlencoded = "0.7"
+url = "2"
+dirs = "5"
+image = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+bytes = { workspace = true }
+base64 = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+walkdir = { workspace = true }
+async-trait = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+
+[features]
+default = ["cloud"]
+tts = ["dep:tts"]
+cloud = []
+local-inference = ["tts", "dep:ort", "dep:ndarray", "dep:whisper-rs"]
+cloud-inference = ["cloud"]
+adaptive = ["local-inference", "cloud-inference"]
