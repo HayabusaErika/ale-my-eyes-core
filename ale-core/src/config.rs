@@ -524,7 +524,10 @@ mod tests {
         config.cloud_api.api_url = "not-a-url".to_string();
 
         let error = ConfigValidator::validate_all(&config).unwrap_err();
-        assert_eq!(error.to_string(), "Config error: API URL must start with http:// or https://");
+        assert_eq!(
+            error.to_string(),
+            "Config error: API URL must start with http:// or https://"
+        );
     }
 
     #[test]
@@ -535,7 +538,10 @@ mod tests {
         config.cloud_api.timeout = 0;
 
         let error = ConfigValidator::validate_all(&config).unwrap_err();
-        assert_eq!(error.to_string(), "Config error: Timeout must be greater than 0");
+        assert_eq!(
+            error.to_string(),
+            "Config error: Timeout must be greater than 0"
+        );
     }
 
     #[test]
@@ -546,7 +552,10 @@ mod tests {
         config.cloud_api.max_tokens = 0;
 
         let error = ConfigValidator::validate_all(&config).unwrap_err();
-        assert_eq!(error.to_string(), "Config error: Max tokens must be greater than 0");
+        assert_eq!(
+            error.to_string(),
+            "Config error: Max tokens must be greater than 0"
+        );
     }
 
     #[test]

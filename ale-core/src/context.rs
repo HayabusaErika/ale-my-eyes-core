@@ -252,7 +252,9 @@ impl ContextManager {
             self.system_prompt.clone()
         } else {
             let mut s = String::with_capacity(
-                self.system_prompt.len() + 32 + memories.iter().map(|m| m.content.len() + 4).sum::<usize>(),
+                self.system_prompt.len()
+                    + 32
+                    + memories.iter().map(|m| m.content.len() + 4).sum::<usize>(),
             );
             s.push_str(&self.system_prompt);
             s.push_str("\n\n用户相关记忆：\n");
@@ -273,7 +275,11 @@ impl ContextManager {
             let last_two: Vec<_> = self.visual_memory.iter().rev().take(2).collect();
             let visual_len: usize = last_two
                 .iter()
-                .map(|f| f.description.len() + f.key_elements.iter().map(|k| k.len() + 2).sum::<usize>() + 32)
+                .map(|f| {
+                    f.description.len()
+                        + f.key_elements.iter().map(|k| k.len() + 2).sum::<usize>()
+                        + 32
+                })
                 .sum();
             let mut visual_context = String::with_capacity(32 + visual_len);
             visual_context.push_str("最近的画面变化：\n");
@@ -282,7 +288,12 @@ impl ContextManager {
                     FrameSource::Camera => "相机",
                     FrameSource::Screen => "屏幕",
                 };
-                visual_context.push_str(&format!("{}. [{}] {}\n", i + 1, source_label, frame.description));
+                visual_context.push_str(&format!(
+                    "{}. [{}] {}\n",
+                    i + 1,
+                    source_label,
+                    frame.description
+                ));
                 if !frame.key_elements.is_empty() {
                     visual_context.push_str("   关键元素: ");
                     visual_context.push_str(&frame.key_elements.join(", "));
