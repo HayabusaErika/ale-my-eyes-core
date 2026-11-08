@@ -694,12 +694,17 @@ impl GoogleApi {
         }
     }
 
+    fn request(&self, method: reqwest::Method, url: String) -> reqwest::RequestBuilder {
+        self.client
+            .request(method, url)
+            .header("x-goog-api-key", &self.config.api_key)
+    }
+
     fn generate_url(&self) -> String {
         format!(
-            "{}/models/{}:generateContent?key={}",
+            "{}/models/{}:generateContent",
             self.config.api_url.trim_end_matches('/'),
-            self.config.model,
-            self.config.api_key
+            self.config.model
         )
     }
 
@@ -801,8 +806,7 @@ impl CloudApi for GoogleApi {
         }
 
         let response_body = self
-            .client
-            .post(self.generate_url())
+            .request(reqwest::Method::POST, self.generate_url())
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
@@ -855,8 +859,7 @@ impl CloudApi for GoogleApi {
         }
 
         let response_body = self
-            .client
-            .post(self.generate_url())
+            .request(reqwest::Method::POST, self.generate_url())
             .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
@@ -889,14 +892,12 @@ impl CloudApi for GoogleApi {
 
     async fn health_check(&self) -> Result<bool> {
         let url = format!(
-            "{}/models/{}?key={}",
+            "{}/models/{}",
             self.config.api_url.trim_end_matches('/'),
-            self.config.model,
-            self.config.api_key
+            self.config.model
         );
         let response = self
-            .client
-            .get(url)
+            .request(reqwest::Method::GET, url)
             .send()
             .await
             .map_err(|e| AleError::CloudApiError(format!("Health check failed: {}", e)))?;
@@ -1252,8 +1253,7 @@ mod tests {
         });
 
         let request = api
-            .client
-            .post(api.generate_url())
+            .request(reqwest::Method::POST, api.generate_url())
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({
                 "contents": [],
@@ -1282,8 +1282,7 @@ mod tests {
         });
 
         let request = api
-            .client
-            .post(api.generate_url())
+            .request(reqwest::Method::POST, api.generate_url())
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({
                 "contents": [],
@@ -1296,6 +1295,61 @@ mod tests {
             request.headers().get("x-goog-api-key").is_some(),
             "Google request is missing the x-goog-api-key header"
         );
+    }
+
+    #[tokio::test]
+    async fn google_authentication_stays_in_headers_for_all_requests() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for method in ["GET", "POST", "POST"] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut bytes = Vec::new();
+                let mut chunk = [0; 4096];
+                loop {
+                    let n = socket.read(&mut chunk).await.unwrap();
+                    assert!(n > 0);
+                    bytes.extend_from_slice(&chunk[..n]);
+                    if bytes.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let request = String::from_utf8_lossy(&bytes);
+                let first_line = request.lines().next().unwrap();
+                assert!(first_line.starts_with(method));
+                assert!(!first_line.contains("review-test-key"));
+                assert!(!first_line.contains("key="));
+                assert!(request
+                    .to_lowercase()
+                    .contains("x-goog-api-key: review-test-key\r\n"));
+                let body = r#"{"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}"#;
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let api = GoogleApi::new(CloudConfig {
+            provider: CloudProvider::Google,
+            api_url: format!("http://{address}"),
+            api_key: "review-test-key".into(),
+            model: "gemini".into(),
+            ..Default::default()
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            assert!(api.health_check().await.unwrap());
+            assert_eq!(api.chat(Vec::new()).await.unwrap().content, "ok");
+            assert_eq!(
+                api.vision(b"test-image", "describe").await.unwrap().content,
+                "ok"
+            );
+            server.await.unwrap();
+        })
+        .await
+        .unwrap();
     }
 
     #[test]
